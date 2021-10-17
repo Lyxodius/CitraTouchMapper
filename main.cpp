@@ -97,6 +97,7 @@ HWND findWindow(std::string windowTitle) {
             return FindWindow(NULL, title.c_str());
         }
     }
+    return NULL;
 }
 
 int main() {
@@ -114,8 +115,6 @@ int main() {
 
     bool lastConnected = false;
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "EndlessLoop"
     while (true) {
         XINPUT_STATE state;
         bool lTriggerPressed = false;
@@ -163,7 +162,6 @@ int main() {
         }
         system("pause");
     }
-#pragma clang diagnostic pop
 }
 
 //COLORREF color = getPixelColor(Vector2(positions[2].x * 2, positions[2].y * 2));
