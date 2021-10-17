@@ -111,9 +111,11 @@ int main() {
     int x = secondMonitor.right - 397;
 
     Vector2 positions[3] = {Vector2(x, 202), Vector2(x, 540), Vector2(x, 877)};
-    int positionIndex = 0;
 
     bool lastConnected = false;
+
+    HWND citraGame = findWindow(R"(Citra\s\w+\s\|\sHEAD)");
+    if (citraGame) SetForegroundWindow(citraGame);
 
     while (true) {
         XINPUT_STATE state;
@@ -124,12 +126,16 @@ int main() {
             float leftTrigger = (float) state.Gamepad.bLeftTrigger / 255;
             if (leftTrigger >= DEADZONE && !lTriggerPressed) {
                 lTriggerPressed = true;
-                positionIndex++;
-                if (positionIndex >= 2) positionIndex = 0;
-                clickAt(positions[positionIndex]);
+                clickAt(positions[1]);
                 SetCursorPos(secondMonitor.right, secondMonitor.bottom);
-            } else if (leftTrigger < DEADZONE) {
+            } else if (leftTrigger < DEADZONE && lTriggerPressed) {
                 lTriggerPressed = false;
+                if (!rTriggerPressed) {
+                    clickAt(positions[0]);
+                } else {
+                    clickAt(positions[2]);
+                }
+                SetCursorPos(secondMonitor.right, secondMonitor.bottom);
             }
 
             float rightTrigger = (float) state.Gamepad.bRightTrigger / 255;
@@ -139,7 +145,11 @@ int main() {
                 SetCursorPos(secondMonitor.right, secondMonitor.bottom);
             } else if (rightTrigger < DEADZONE && rTriggerPressed) {
                 rTriggerPressed = false;
-                clickAt(positions[positionIndex]);
+                if (!lTriggerPressed) {
+                    clickAt(positions[0]);
+                } else {
+                    clickAt(positions[1]);
+                }
                 SetCursorPos(secondMonitor.right, secondMonitor.bottom);
             }
 
@@ -148,7 +158,7 @@ int main() {
                 r3Pressed = true;
 
                 HWND citra = findWindow(R"(Citra\s\w+\s\d+)");
-                HWND citraGame = findWindow(R"(Citra\s\w+\s\|\sHEAD)");
+                citraGame = findWindow(R"(Citra\s\w+\s\|\sHEAD)");
 
                 SetForegroundWindow(citra);
                 SendMessage(citra, WM_KEYDOWN, VK_F4, 0);
