@@ -2,11 +2,14 @@
 #include <XInput.h>
 #include <vector>
 #include <regex>
+#include "rgb.cpp"
 
 #define FRAME 16
-#define DEADZONE 0.5f
+#define DEADZONE 0.05f
+#define MENU_BUTTON_COLOR COLORREF(0xf6e2c1)
+#define BEAM_BUTTON_SELECTED_COLOR COLORREF(0xffae66)
 
-bool getState(XINPUT_STATE &state, bool &lastConnected) {
+bool getXInputState(XINPUT_STATE &state, bool &lastConnected) {
     ZeroMemory(&state, sizeof(XINPUT_STATE));
     bool connected = XInputGetState(0, &state);
     if (connected == ERROR_SUCCESS) {
@@ -53,7 +56,7 @@ struct MonitorRects {
     std::vector<RECT> rcMonitors;
 
     static BOOL CALLBACK callback(HMONITOR hMon, HDC hdc, LPRECT lprcMonitor, LPARAM pData) {
-        MonitorRects *pThis = reinterpret_cast<MonitorRects *>(pData);
+        auto *pThis = reinterpret_cast<MonitorRects *>(pData);
         pThis->rcMonitors.push_back(*lprcMonitor);
         return TRUE;
     }
@@ -63,12 +66,12 @@ struct MonitorRects {
     }
 };
 
-//COLORREF getPixelColor(Vector2 position) {
-//    HDC dc = GetDC(NULL);
-//    COLORREF color = GetPixel(dc, position.x, position.y);
-//    ReleaseDC(NULL, dc);
-//    return color;
-//}
+COLORREF getPixelColor(Vector2 position) {
+    HDC dc = GetDC(NULL);
+    COLORREF color = GetPixel(dc, position.x * 2, position.y * 2);
+    ReleaseDC(NULL, dc);
+    return color;
+}
 
 BOOL CALLBACK windowCallback(HWND hWnd, LPARAM lParam) {
     const DWORD TITLE_SIZE = 1024;
@@ -88,16 +91,32 @@ BOOL CALLBACK windowCallback(HWND hWnd, LPARAM lParam) {
     return TRUE;
 }
 
-HWND findWindow(std::string windowTitle) {
+HWND findWindow(const std::string &windowTitle) {
     std::vector<std::string> titles;
     EnumWindows(windowCallback, reinterpret_cast<LPARAM>(&titles));
     for (const auto &title: titles) {
         std::regex self_regex(windowTitle);
         if (std::regex_search(title, self_regex)) {
-            return FindWindow(NULL, title.c_str());
+            return FindWindow(nullptr, title.c_str());
         }
     }
-    return NULL;
+    return nullptr;
+}
+
+bool isBrighterOrEqual(COLORREF color1, COLORREF color2) {
+    int sum1 = GetRValue(color1) + GetGValue(color1) + GetBValue(color1);
+    int sum2 = GetRValue(color2) + GetGValue(color2) + GetBValue(color2);
+    return sum1 >= sum2;
+}
+
+void printMouseData() {
+    POINT point;
+    GetCursorPos(&point);
+    COLORREF color = getPixelColor(Vector2(point.x, point.y));
+    hsv hsvColor = rgb2hsv(rgb(color));
+    bool brighterThan = isBrighterOrEqual(color, BEAM_BUTTON_SELECTED_COLOR);
+    printf("x: %ld, y: %ld, color: %.6lx, brighterThan: %d, h: %f, s: %f, v: %f\n", point.x, point.y, color,
+           brighterThan, hsvColor.h, hsvColor.s, hsvColor.v);
 }
 
 int main() {
@@ -108,9 +127,10 @@ int main() {
     }
 
     tagRECT secondMonitor = monitors.rcMonitors[1];
-    int x = secondMonitor.right - 397;
+    int x = 3332;
 
-    Vector2 positions[3] = {Vector2(x, 202), Vector2(x, 540), Vector2(x, 877)};
+    Vector2 menuButtonPosition = Vector2(2266, 1022);
+    Vector2 positions[3] = {Vector2(x, 92), Vector2(x, 430), Vector2(x, 767)};
 
     bool lastConnected = false;
 
@@ -119,38 +139,67 @@ int main() {
 
     while (true) {
         XINPUT_STATE state;
+        bool r1Pressed = false;
         bool lTriggerPressed = false;
         bool rTriggerPressed = false;
+        bool l3Pressed = false;
         bool r3Pressed = false;
-        while (getState(state, lastConnected) == ERROR_SUCCESS) {
-            float leftTrigger = (float) state.Gamepad.bLeftTrigger / 255;
-            if (leftTrigger >= DEADZONE && !lTriggerPressed) {
-                lTriggerPressed = true;
-                clickAt(positions[1]);
-                SetCursorPos(secondMonitor.right, secondMonitor.bottom);
-            } else if (leftTrigger < DEADZONE && lTriggerPressed) {
-                lTriggerPressed = false;
-                if (!rTriggerPressed) {
-                    clickAt(positions[0]);
-                } else {
-                    clickAt(positions[2]);
-                }
-                SetCursorPos(secondMonitor.right, secondMonitor.bottom);
-            }
+        int selectedBeamButton = 0;
+        int defaultBeam = 0;
+        int defaultMissile = 0;
+        while (getXInputState(state, lastConnected) == ERROR_SUCCESS) {
+            printMouseData();
 
-            float rightTrigger = (float) state.Gamepad.bRightTrigger / 255;
-            if (rightTrigger >= DEADZONE && !rTriggerPressed) {
-                rTriggerPressed = true;
-                clickAt(positions[2]);
-                SetCursorPos(secondMonitor.right, secondMonitor.bottom);
-            } else if (rightTrigger < DEADZONE && rTriggerPressed) {
-                rTriggerPressed = false;
-                if (!lTriggerPressed) {
-                    clickAt(positions[0]);
-                } else {
-                    clickAt(positions[1]);
+            COLORREF menuButtonPositionColor = getPixelColor(menuButtonPosition);
+
+            if (menuButtonPositionColor == MENU_BUTTON_COLOR) {
+                bool r1 = (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
+                if (r1 && !r1Pressed) {
+                    r1Pressed = true;
+                } else if (!r1) {
+                    r1Pressed = false;
                 }
-                SetCursorPos(secondMonitor.right, secondMonitor.bottom);
+
+                bool l3 = (state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0;
+                if (l3 && !l3Pressed) {
+                    l3Pressed = true;
+                    if (!r1Pressed) {
+                        defaultBeam = !defaultBeam;
+                    } else {
+                        defaultMissile = !defaultMissile;
+                    }
+                } else if (!l3) {
+                    l3Pressed = false;
+                }
+
+                float leftTrigger = (float) state.Gamepad.bLeftTrigger / 255;
+                if (leftTrigger >= DEADZONE && !lTriggerPressed) {
+                    lTriggerPressed = true;
+                } else if (leftTrigger < DEADZONE && lTriggerPressed) {
+                    lTriggerPressed = false;
+                }
+
+                selectedBeamButton = !r1Pressed ? defaultBeam : defaultMissile;
+                float rightTrigger = (float) state.Gamepad.bRightTrigger / 255;
+                if (rightTrigger >= DEADZONE && !r1Pressed) {
+                    selectedBeamButton = 2;
+                }
+
+                bool morphBall = false;
+                for (int i = 0; i < 2; i++) {
+                    COLORREF color = getPixelColor(positions[i]);
+                    hsv h = rgb2hsv(rgb(color));
+                    if (h.v < 0.4) {
+                        morphBall = true;
+                        break;
+                    }
+                }
+
+                hsv selectedBeamButtonColor = rgb2hsv(rgb(getPixelColor(positions[selectedBeamButton])));
+                if (selectedBeamButtonColor.v < 1 && !morphBall || selectedBeamButtonColor.v < 0.51 && morphBall) {
+                    clickAt(positions[selectedBeamButton]);
+                    SetCursorPos(secondMonitor.right, secondMonitor.bottom);
+                }
             }
 
             bool r3 = (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0;
@@ -173,5 +222,3 @@ int main() {
         system("pause");
     }
 }
-
-//COLORREF color = getPixelColor(Vector2(positions[2].x * 2, positions[2].y * 2));
