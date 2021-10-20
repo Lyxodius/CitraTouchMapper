@@ -148,7 +148,7 @@ int main() {
         int defaultBeam = 0;
         int defaultMissile = 0;
         while (getXInputState(state, lastConnected) == ERROR_SUCCESS) {
-            printMouseData();
+//            printMouseData();
 
             COLORREF menuButtonPositionColor = getPixelColor(menuButtonPosition);
 
