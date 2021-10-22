@@ -130,7 +130,7 @@ int main() {
     int x = 3332;
 
     Vector2 menuButtonPosition = Vector2(2266, 1022);
-    Vector2 positions[3] = {Vector2(x, 92), Vector2(x, 430), Vector2(x, 767)};
+    Vector2 positions[3] = {Vector2(x, 92), Vector2(x, 648), Vector2(x, 767)};
 
     bool lastConnected = false;
 
@@ -180,6 +180,7 @@ int main() {
                 }
 
                 selectedBeamButton = !r1Pressed ? defaultBeam : defaultMissile;
+                if (lTriggerPressed) selectedBeamButton = !selectedBeamButton;
                 float rightTrigger = (float) state.Gamepad.bRightTrigger / 255;
                 if (rightTrigger >= DEADZONE && !r1Pressed) {
                     selectedBeamButton = 2;
